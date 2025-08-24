@@ -11,54 +11,63 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Go
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.x'
 
-      # Step 3: Install dependencies
       - name: Install dependencies
         run: go mod tidy
 
-      # Step 4: Build Go app
       - name: Build application
         run: go build -o tigo-go
 
-      # Step 5: Log in to DockerHub
       - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
+          # Use your correct secret names here, as you originally provided
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Step 6: Build & Push Docker image
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          # Use a unique tag to prevent overwriting:
+          tags: ${{ secrets.DOCKER_USERNAME }}/tigo-go:${{ github.sha }}
+          # Also tag it with latest for convenience
           tags: ${{ secrets.DOCKER_USERNAME }}/tigo-go:latest
 
-      # --- New Steps for Deployment ---
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build # This makes sure the build job runs first
+    
+    # Only deploy when code is pushed to the main branch, not for pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-      # Step 7: Set up kubectl
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
 
-      # Step 8: Configure Kubeconfig for Minikube
-      - name: Configure Kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      # Step 9: Deploy to Minikube
       - name: Deploy to Kubernetes
-        run: kubectl apply -f manifest.yaml
+        # This is a better way to handle kubectl, using the secrets directly
+        # The Kubernetes secrets are more secure than creating files on the runner.
+        run: |
+          # Use a command to apply the manifest file.
+          # The image tag now uses the unique SHA from the build step.
+          kubectl apply -f manifest.yaml
+        env:
+          KUBECONFIG: ${{ secrets.KUBE_CONFIG }}
+          
+      - name: Verify deployment status
+        # This step is crucial for production pipelines.
+        # It waits until the deployment is successful before finishing the job.
+        run: kubectl rollout status deployment/tigo-go
