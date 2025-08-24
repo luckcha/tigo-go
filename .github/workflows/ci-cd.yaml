@@ -3,10 +3,10 @@ name: Go CI/CD
 on:
   push:
     branches:
-      - main   # runs on push to main branch
+      - main
   pull_request:
     branches:
-      - main   # runs on PR targeting main branch
+      - main
 
 jobs:
   build:
@@ -35,8 +35,8 @@ jobs:
       - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Step 6: Build & Push Docker image
       - name: Build and push Docker image
@@ -44,4 +44,21 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/tigo-go:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tigo-go:latest
+
+      # --- New Steps for Deployment ---
+
+      # Step 7: Set up kubectl
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      # Step 8: Configure Kubeconfig for Minikube
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      # Step 9: Deploy to Minikube
+      - name: Deploy to Kubernetes
+        run: kubectl apply -f manifest.yaml
