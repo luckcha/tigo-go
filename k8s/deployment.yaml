@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tigo-go-deployment
+  namespace: tigo-go-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tigo-go
+  template:
+    metadata:
+      labels:
+        app: tigo-go
+    spec:
+      containers:
+      - name: tigo-go-container
+        image: dockluck336/tigo-go:latest # update if you tag differently
+        ports:
+        - containerPort: 10000
